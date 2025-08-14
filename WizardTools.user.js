@@ -1,16 +1,16 @@
 // ==UserScript==
 // @name         Wizard Tools
-// @namespace    https://github.com/RynAgian/PaytonFilesSplitter
+// @namespace    https://github.com/RynAgain/Payton-sFileSpliter
 // @version      2.0.0
 // @description  A powerful suite of tools with modern draggable UI - File Chunker, Text Tools, and more!
 // @author       RynAgian
 // @match        *://*/*
 // @grant        none
 // @require      https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js
-// @downloadURL  https://raw.githubusercontent.com/RynAgian/PaytonFilesSplitter/master/WizardTools.user.js
-// @updateURL    https://raw.githubusercontent.com/RynAgian/PaytonFilesSplitter/master/WizardTools.user.js
-// @supportURL   https://github.com/RynAgian/PaytonFilesSplitter/issues
-// @homepageURL  https://github.com/RynAgian/PaytonFilesSplitter
+// @downloadURL  https://github.com/RynAgain/Payton-sFileSpliter/raw/refs/heads/master/WizardTools.user.js
+// @updateURL    https://github.com/RynAgain/Payton-sFileSpliter/raw/refs/heads/master/WizardTools.user.js
+// @supportURL   https://github.com/RynAgain/Payton-sFileSpliter/issues
+// @homepageURL  https://github.com/RynAgain/Payton-sFileSpliter
 // @run-at       document-end
 // ==/UserScript==
 
