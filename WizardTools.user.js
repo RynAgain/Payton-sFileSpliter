@@ -1,12 +1,13 @@
 // ==UserScript==
 // @name         Wizard Tools
 // @namespace    https://github.com/RynAgain/Payton-sFileSpliter
-// @version      2.0.0
+// @version      2.0.1
 // @description  A powerful suite of tools with modern draggable UI - File Chunker, Text Tools, and more!
 // @author       RynAgian
 // @match        *://*/*
 // @grant        none
 // @require      https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js
+// @require      https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js
 // @downloadURL  https://github.com/RynAgain/Payton-sFileSpliter/raw/refs/heads/master/WizardTools.user.js
 // @updateURL    https://github.com/RynAgain/Payton-sFileSpliter/raw/refs/heads/master/WizardTools.user.js
 // @supportURL   https://github.com/RynAgain/Payton-sFileSpliter/issues
@@ -59,11 +60,18 @@
                     <!-- File Chunker Tool -->
                     <div id="fileChunker" class="tool-section active">
                         <h3>📁 File Chunker</h3>
-                        <p>Split large CSV files into smaller chunks</p>
+                        <p>Split large CSV/Excel files into smaller chunks</p>
                         
                         <div class="form-group">
-                            <label for="wizardFileInput">Select CSV File:</label>
-                            <input type="file" id="wizardFileInput" accept=".csv" class="file-input">
+                            <label for="wizardFileInput">Select File:</label>
+                            <input type="file" id="wizardFileInput" accept=".csv,.xlsx,.xls" class="file-input">
+                        </div>
+                        
+                        <div class="form-group" id="sheetSelectionGroup" style="display: none;">
+                            <label for="wizardSheetSelect">Select Sheet:</label>
+                            <select id="wizardSheetSelect" class="select-input">
+                                <option value="">Loading sheets...</option>
+                            </select>
                         </div>
                         
                         <div class="form-group">
@@ -71,12 +79,14 @@
                             <input type="number" id="wizardRowsPerChunk" value="1000" min="1" class="number-input">
                         </div>
                         
-                        <div class="form-group checkbox-group">
-                            <label class="checkbox-label">
-                                <input type="checkbox" id="wizardUploadValidation" checked>
-                                <span class="checkmark"></span>
-                                Upload Validation
-                            </label>
+                        <div class="form-group">
+                            <label for="wizardOutputFormat">Output Format:</label>
+                            <select id="wizardOutputFormat" class="select-input">
+                                <option value="csv">CSV (Comma Separated)</option>
+                                <option value="csv-semicolon">CSV (Semicolon Separated)</option>
+                                <option value="csv-tab">CSV (Tab Separated)</option>
+                                <option value="xlsx">Excel (.xlsx)</option>
+                            </select>
                         </div>
                         
                         <button id="wizardChunkButton" class="action-btn">
@@ -327,7 +337,7 @@
                     font-weight: 500;
                 }
 
-                .file-input, .number-input, .text-area, .color-text {
+                .file-input, .number-input, .text-area, .color-text, .select-input {
                     width: 100%;
                     padding: 10px 12px;
                     border: 2px solid #e1e8ed;
@@ -752,27 +762,77 @@
         });
     }
 
-    // Initialize file chunker functionality (same as before)
+    // Initialize file chunker functionality with Excel support
     function initializeFileChunker() {
         const chunkButton = document.getElementById('wizardChunkButton');
         const messageEl = document.getElementById('wizardMessage');
+        const fileInput = document.getElementById('wizardFileInput');
+        const sheetSelectionGroup = document.getElementById('sheetSelectionGroup');
+        const sheetSelect = document.getElementById('wizardSheetSelect');
 
         function updateMessage(text, type = '') {
             messageEl.textContent = text;
             messageEl.className = 'message ' + type;
         }
 
-        chunkButton.addEventListener('click', function() {
-            const fileInput = document.getElementById('wizardFileInput');
-            if (fileInput.files.length === 0) {
-                updateMessage('Please select a CSV file to upload.', 'error');
+        // Handle file selection to show sheet selection for Excel files
+        fileInput.addEventListener('change', function() {
+            const file = fileInput.files[0];
+            if (!file) {
+                sheetSelectionGroup.style.display = 'none';
                 return;
             }
 
+            const fileName = file.name.toLowerCase();
+            if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+                // Show sheet selection for Excel files
+                sheetSelectionGroup.style.display = 'block';
+                loadExcelSheets(file);
+            } else {
+                sheetSelectionGroup.style.display = 'none';
+            }
+        });
+
+        function loadExcelSheets(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    
+                    sheetSelect.innerHTML = '';
+                    workbook.SheetNames.forEach(sheetName => {
+                        const option = document.createElement('option');
+                        option.value = sheetName;
+                        option.textContent = sheetName;
+                        sheetSelect.appendChild(option);
+                    });
+                } catch (error) {
+                    updateMessage('Error reading Excel file: ' + error.message, 'error');
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        chunkButton.addEventListener('click', function() {
             const file = fileInput.files[0];
+            if (!file) {
+                updateMessage('Please select a file to upload.', 'error');
+                return;
+            }
+
             const rowsPerFile = parseInt(document.getElementById('wizardRowsPerChunk').value, 10);
             if (isNaN(rowsPerFile) || rowsPerFile < 1) {
                 updateMessage('Please enter a valid number of rows per file.', 'error');
+                return;
+            }
+
+            const outputFormat = document.getElementById('wizardOutputFormat').value;
+            const fileName = file.name.toLowerCase();
+            
+            // Check if Excel file and sheet is selected
+            if ((fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) && !sheetSelect.value) {
+                updateMessage('Please select a sheet from the Excel file.', 'error');
                 return;
             }
 
@@ -785,81 +845,39 @@
                 return;
             }
 
+            processFile(file, rowsPerFile, outputFormat);
+        });
+
+        function processFile(file, rowsPerFile, outputFormat) {
+            const fileName = file.name.toLowerCase();
+            
+            if (fileName.endsWith('.csv')) {
+                processCSVFile(file, rowsPerFile, outputFormat);
+            } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+                processExcelFile(file, rowsPerFile, outputFormat);
+            } else {
+                updateMessage('Unsupported file format. Please select a CSV or Excel file.', 'error');
+                chunkButton.disabled = false;
+            }
+        }
+
+        function processCSVFile(file, rowsPerFile, outputFormat) {
             const reader = new FileReader();
             reader.onload = function(event) {
                 try {
                     const csvData = event.target.result;
-                    const expectedHeader = "Store - 3 Letter Code,Item Name,Item PLU/UPC,Availability,Current Inventory,Sales Floor Capacity,Andon Cord,Tracking Start Date,Tracking End Date";
-                    const doValidation = document.getElementById('wizardUploadValidation').checked;
-
-                    function customParseCSV(data) {
-                        const lines = data.split('\n');
-                        const parsedData = [];
-                        const expectedColumns = 9;
-
-                        lines.forEach(line => {
-                            let fields = line.split(',');
-                            for (let i = 0; i < fields.length - 1; i++) {
-                                if (fields[i].endsWith(',') && fields[i + 1].startsWith(' ')) {
-                                    fields[i] = fields[i] + fields[i + 1];
-                                    fields.splice(i + 1, 1);
-                                }
-                            }
-                            while (fields.length < expectedColumns) {
-                                fields.push('');
-                            }
-                            parsedData.push(fields);
-                        });
-
-                        return parsedData;
-                    }
-
-                    const parsedData = customParseCSV(csvData);
-                    if (parsedData.length === 0) {
-                        updateMessage('CSV file is empty.', 'error');
-                        chunkButton.disabled = false;
-                        return;
-                    }
-
-                    const header = parsedData[0].join(',');
-                    if (doValidation && header.trim() !== expectedHeader.trim()) {
-                        updateMessage("CSV header does not match expected format.", 'error');
-                        chunkButton.disabled = false;
-                        return;
-                    }
-
-                    const dataRows = [];
-                    for (let i = 1; i < parsedData.length; i++) {
-                        const isBlank = parsedData[i].every(field => field.trim() === "");
-                        const joined = parsedData[i].join(',').replace(/[\s,]/g, "");
-                        if (!isBlank && joined.length > 0) {
-                            dataRows.push(parsedData[i].join(','));
-                        }
-                    }
-
-                    const totalChunks = Math.ceil(dataRows.length / rowsPerFile);
-                    const zip = new JSZip();
+                    const lines = csvData.split('\n').filter(line => line.trim() !== '');
                     
-                    for (let i = 0; i < totalChunks; i++) {
-                        const chunkData = dataRows.slice(i * rowsPerFile, (i + 1) * rowsPerFile);
-                        const chunkCsv = [header].concat(chunkData).join('\n');
-                        zip.file('chunk_' + (i + 1) + '.csv', chunkCsv);
+                    if (lines.length === 0) {
+                        updateMessage('File is empty.', 'error');
+                        chunkButton.disabled = false;
+                        return;
                     }
 
-                    zip.generateAsync({ type: 'blob' }).then(function(content) {
-                        const link = document.createElement('a');
-                        link.href = window.URL.createObjectURL(content);
-                        link.download = 'chunked_files.zip';
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                        updateMessage(`Success: ${totalChunks} files chunked and zip downloaded.`, 'success');
-                        chunkButton.disabled = false;
-                    }).catch(function(error) {
-                        console.error('Error generating zip file:', error);
-                        updateMessage('An error occurred while generating the zip file.', 'error');
-                        chunkButton.disabled = false;
-                    });
+                    const header = lines[0];
+                    const dataRows = lines.slice(1);
+                    
+                    createChunks(header, dataRows, rowsPerFile, outputFormat);
                 } catch (err) {
                     console.error('Error processing CSV:', err);
                     updateMessage('An error occurred: ' + err.message, 'error');
@@ -867,7 +885,107 @@
                 }
             };
             reader.readAsText(file);
-        });
+        }
+
+        function processExcelFile(file, rowsPerFile, outputFormat) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const sheetName = sheetSelect.value;
+                    const worksheet = workbook.Sheets[sheetName];
+                    
+                    if (!worksheet) {
+                        updateMessage('Selected sheet not found.', 'error');
+                        chunkButton.disabled = false;
+                        return;
+                    }
+
+                    // Convert to array of arrays
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                    
+                    if (jsonData.length === 0) {
+                        updateMessage('Selected sheet is empty.', 'error');
+                        chunkButton.disabled = false;
+                        return;
+                    }
+
+                    const header = jsonData[0];
+                    const dataRows = jsonData.slice(1).filter(row => row.some(cell => cell !== undefined && cell !== ''));
+                    
+                    createChunks(header, dataRows, rowsPerFile, outputFormat);
+                } catch (error) {
+                    console.error('Error processing Excel file:', error);
+                    updateMessage('Error processing Excel file: ' + error.message, 'error');
+                    chunkButton.disabled = false;
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function createChunks(header, dataRows, rowsPerFile, outputFormat) {
+            const totalChunks = Math.ceil(dataRows.length / rowsPerFile);
+            const zip = new JSZip();
+            
+            try {
+                for (let i = 0; i < totalChunks; i++) {
+                    const chunkData = dataRows.slice(i * rowsPerFile, (i + 1) * rowsPerFile);
+                    const chunkNumber = i + 1;
+                    
+                    if (outputFormat === 'xlsx') {
+                        // Create Excel file
+                        const wb = XLSX.utils.book_new();
+                        const wsData = [header, ...chunkData];
+                        const ws = XLSX.utils.aoa_to_sheet(wsData);
+                        XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+                        const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+                        zip.file(`chunk_${chunkNumber}.xlsx`, excelBuffer);
+                    } else {
+                        // Create CSV file with different separators
+                        let separator = ',';
+                        let extension = 'csv';
+                        
+                        switch (outputFormat) {
+                            case 'csv-semicolon':
+                                separator = ';';
+                                break;
+                            case 'csv-tab':
+                                separator = '\t';
+                                break;
+                            default:
+                                separator = ',';
+                        }
+                        
+                        const csvContent = [header, ...chunkData]
+                            .map(row => Array.isArray(row) ? row.join(separator) : row)
+                            .join('\n');
+                        
+                        zip.file(`chunk_${chunkNumber}.${extension}`, csvContent);
+                    }
+                }
+
+                // Generate and download zip
+                zip.generateAsync({ type: 'blob' }).then(function(content) {
+                    const link = document.createElement('a');
+                    link.href = window.URL.createObjectURL(content);
+                    link.download = 'chunked_files.zip';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    updateMessage(`Success: ${totalChunks} files chunked and zip downloaded.`, 'success');
+                    chunkButton.disabled = false;
+                }).catch(function(error) {
+                    console.error('Error generating zip file:', error);
+                    updateMessage('An error occurred while generating the zip file.', 'error');
+                    chunkButton.disabled = false;
+                });
+            } catch (error) {
+                console.error('Error creating chunks:', error);
+                updateMessage('An error occurred while creating chunks: ' + error.message, 'error');
+                chunkButton.disabled = false;
+            }
+        }
     }
 
     // Initialize text tools
