@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Wizard Tools
 // @namespace    https://github.com/RynAgain/Payton-sFileSpliter
-// @version      2.0.1
+// @version      2.1.1
 // @description  A powerful suite of tools with modern draggable UI - File Chunker, Text Tools, and more!
 // @author       RynAgian
 // @match        *://*/*
@@ -108,12 +108,12 @@
                         </div>
                         
                         <div class="button-grid">
-                            <button class="tool-btn" onclick="transformText('upper')">UPPERCASE</button>
-                            <button class="tool-btn" onclick="transformText('lower')">lowercase</button>
-                            <button class="tool-btn" onclick="transformText('title')">Title Case</button>
-                            <button class="tool-btn" onclick="transformText('reverse')">esreveR</button>
-                            <button class="tool-btn" onclick="transformText('count')">Count Words</button>
-                            <button class="tool-btn" onclick="transformText('clean')">Clean Spaces</button>
+                            <button class="tool-btn" id="upperBtn">UPPERCASE</button>
+                            <button class="tool-btn" id="lowerBtn">lowercase</button>
+                            <button class="tool-btn" id="titleBtn">Title Case</button>
+                            <button class="tool-btn" id="reverseBtn">esreveR</button>
+                            <button class="tool-btn" id="countBtn">Count Words</button>
+                            <button class="tool-btn" id="cleanBtn">Clean Spaces</button>
                         </div>
                         
                         <div class="form-group">
@@ -161,28 +161,28 @@
                         </div>
                         
                         <div class="calc-buttons">
-                            <button class="calc-btn clear" onclick="clearCalc()">C</button>
-                            <button class="calc-btn" onclick="calcInput('/')">/</button>
-                            <button class="calc-btn" onclick="calcInput('*')">×</button>
-                            <button class="calc-btn" onclick="deleteLast()">⌫</button>
+                            <button class="calc-btn clear" id="calcClear">C</button>
+                            <button class="calc-btn" id="calcDivide">/</button>
+                            <button class="calc-btn" id="calcMultiply">×</button>
+                            <button class="calc-btn" id="calcDelete">⌫</button>
                             
-                            <button class="calc-btn" onclick="calcInput('7')">7</button>
-                            <button class="calc-btn" onclick="calcInput('8')">8</button>
-                            <button class="calc-btn" onclick="calcInput('9')">9</button>
-                            <button class="calc-btn" onclick="calcInput('-')">-</button>
+                            <button class="calc-btn" id="calc7">7</button>
+                            <button class="calc-btn" id="calc8">8</button>
+                            <button class="calc-btn" id="calc9">9</button>
+                            <button class="calc-btn" id="calcMinus">-</button>
                             
-                            <button class="calc-btn" onclick="calcInput('4')">4</button>
-                            <button class="calc-btn" onclick="calcInput('5')">5</button>
-                            <button class="calc-btn" onclick="calcInput('6')">6</button>
-                            <button class="calc-btn" onclick="calcInput('+')">+</button>
+                            <button class="calc-btn" id="calc4">4</button>
+                            <button class="calc-btn" id="calc5">5</button>
+                            <button class="calc-btn" id="calc6">6</button>
+                            <button class="calc-btn" id="calcPlus">+</button>
                             
-                            <button class="calc-btn" onclick="calcInput('1')">1</button>
-                            <button class="calc-btn" onclick="calcInput('2')">2</button>
-                            <button class="calc-btn" onclick="calcInput('3')">3</button>
-                            <button class="calc-btn equals" onclick="calculate()" rowspan="2">=</button>
+                            <button class="calc-btn" id="calc1">1</button>
+                            <button class="calc-btn" id="calc2">2</button>
+                            <button class="calc-btn" id="calc3">3</button>
+                            <button class="calc-btn equals" id="calcEquals">=</button>
                             
-                            <button class="calc-btn zero" onclick="calcInput('0')">0</button>
-                            <button class="calc-btn" onclick="calcInput('.')">.</button>
+                            <button class="calc-btn zero" id="calc0">0</button>
+                            <button class="calc-btn" id="calcDot">.</button>
                         </div>
                     </div>
                 </div>
@@ -990,7 +990,7 @@
 
     // Initialize text tools
     function initializeTextTools() {
-        window.transformText = function(action) {
+        function transformText(action) {
             const input = document.getElementById('textInput').value;
             const output = document.getElementById('textOutput');
             
@@ -1018,7 +1018,15 @@
                     output.value = input.replace(/\s+/g, ' ').trim();
                     break;
             }
-        };
+        }
+
+        // Add event listeners to text tool buttons
+        document.getElementById('upperBtn').addEventListener('click', () => transformText('upper'));
+        document.getElementById('lowerBtn').addEventListener('click', () => transformText('lower'));
+        document.getElementById('titleBtn').addEventListener('click', () => transformText('title'));
+        document.getElementById('reverseBtn').addEventListener('click', () => transformText('reverse'));
+        document.getElementById('countBtn').addEventListener('click', () => transformText('count'));
+        document.getElementById('cleanBtn').addEventListener('click', () => transformText('clean'));
     }
 
     // Initialize color picker
@@ -1087,7 +1095,7 @@
         
         const display = document.getElementById('calcDisplay');
 
-        window.calcInput = function(value) {
+        function calcInput(value) {
             if (['+', '-', '*', '/'].includes(value)) {
                 if (currentInput && !operator) {
                     operator = value;
@@ -1103,9 +1111,9 @@
                     display.value = currentInput;
                 }
             }
-        };
+        }
 
-        window.calculate = function() {
+        function calculate() {
             if (previousInput && operator && currentInput) {
                 const prev = parseFloat(previousInput);
                 const curr = parseFloat(currentInput);
@@ -1131,16 +1139,16 @@
                 operator = '';
                 previousInput = '';
             }
-        };
+        }
 
-        window.clearCalc = function() {
+        function clearCalc() {
             currentInput = '';
             operator = '';
             previousInput = '';
             display.value = '';
-        };
+        }
 
-        window.deleteLast = function() {
+        function deleteLast() {
             if (currentInput) {
                 currentInput = currentInput.slice(0, -1);
                 if (operator) {
@@ -1149,7 +1157,31 @@
                     display.value = currentInput;
                 }
             }
-        };
+        }
+
+        // Add event listeners to calculator buttons
+        document.getElementById('calcClear').addEventListener('click', clearCalc);
+        document.getElementById('calcDivide').addEventListener('click', () => calcInput('/'));
+        document.getElementById('calcMultiply').addEventListener('click', () => calcInput('*'));
+        document.getElementById('calcDelete').addEventListener('click', deleteLast);
+        
+        document.getElementById('calc7').addEventListener('click', () => calcInput('7'));
+        document.getElementById('calc8').addEventListener('click', () => calcInput('8'));
+        document.getElementById('calc9').addEventListener('click', () => calcInput('9'));
+        document.getElementById('calcMinus').addEventListener('click', () => calcInput('-'));
+        
+        document.getElementById('calc4').addEventListener('click', () => calcInput('4'));
+        document.getElementById('calc5').addEventListener('click', () => calcInput('5'));
+        document.getElementById('calc6').addEventListener('click', () => calcInput('6'));
+        document.getElementById('calcPlus').addEventListener('click', () => calcInput('+'));
+        
+        document.getElementById('calc1').addEventListener('click', () => calcInput('1'));
+        document.getElementById('calc2').addEventListener('click', () => calcInput('2'));
+        document.getElementById('calc3').addEventListener('click', () => calcInput('3'));
+        document.getElementById('calcEquals').addEventListener('click', calculate);
+        
+        document.getElementById('calc0').addEventListener('click', () => calcInput('0'));
+        document.getElementById('calcDot').addEventListener('click', () => calcInput('.'));
     }
 
     // Show toggle button
