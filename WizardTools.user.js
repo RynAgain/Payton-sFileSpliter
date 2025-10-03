@@ -1071,6 +1071,8 @@
                 chunkButton.disabled = false;
             }
         }
+    }
+
     // Initialize file combiner functionality
     function initializeFileCombiner() {
         const combineButton = document.getElementById('combineButton');
@@ -1415,8 +1417,6 @@
             link.click();
             document.body.removeChild(link);
         }
-    }
-
     }
 
     // Initialize text tools
