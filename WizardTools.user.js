@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Wizard Tools
 // @namespace    https://github.com/RynAgain/Payton-sFileSpliter
-// @version      2.1.1
-// @description  A powerful suite of tools with modern draggable UI - File Chunker, Text Tools, and more!
+// @version      2.2.0
+// @description  A powerful suite of tools with modern draggable UI - File Chunker, File Combiner, Text Tools, and more!
 // @author       RynAgian
 // @match        *://*/*
 // @grant        none
@@ -51,6 +51,7 @@
                 
                 <div class="wizard-tabs">
                     <button class="tab-btn active" data-tool="fileChunker">📁 File Chunker</button>
+                    <button class="tab-btn" data-tool="fileCombiner">🔗 File Combiner</button>
                     <button class="tab-btn" data-tool="textTools">📝 Text Tools</button>
                     <button class="tab-btn" data-tool="colorPicker">🎨 Color Picker</button>
                     <button class="tab-btn" data-tool="calculator">🧮 Calculator</button>
@@ -149,6 +150,89 @@
                                 </div>
                             </div>
                         </div>
+                    </div>
+
+                    <!-- File Combiner -->
+                    <div id="fileCombiner" class="tool-section">
+                        <h3>🔗 File Combiner</h3>
+                        <p>Combine multiple CSV/Excel files with union or join operations</p>
+                        
+                        <div class="form-group">
+                            <label for="combineType">Combine Type:</label>
+                            <select id="combineType" class="select-input">
+                                <option value="union">Union (up to 5 files)</option>
+                                <option value="left">Left Join (2 files)</option>
+                                <option value="right">Right Join (2 files)</option>
+                            </select>
+                        </div>
+                        
+                        <div id="unionFilesSection">
+                            <div class="form-group">
+                                <label for="combineFile1">File 1:</label>
+                                <input type="file" id="combineFile1" accept=".csv,.xlsx,.xls" class="file-input">
+                            </div>
+                            <div class="form-group">
+                                <label for="combineFile2">File 2:</label>
+                                <input type="file" id="combineFile2" accept=".csv,.xlsx,.xls" class="file-input">
+                            </div>
+                            <div class="form-group">
+                                <label for="combineFile3">File 3 (optional):</label>
+                                <input type="file" id="combineFile3" accept=".csv,.xlsx,.xls" class="file-input">
+                            </div>
+                            <div class="form-group">
+                                <label for="combineFile4">File 4 (optional):</label>
+                                <input type="file" id="combineFile4" accept=".csv,.xlsx,.xls" class="file-input">
+                            </div>
+                            <div class="form-group">
+                                <label for="combineFile5">File 5 (optional):</label>
+                                <input type="file" id="combineFile5" accept=".csv,.xlsx,.xls" class="file-input">
+                            </div>
+                        </div>
+                        
+                        <div id="joinFilesSection" style="display: none;">
+                            <div class="form-group">
+                                <label for="joinFile1">Left File:</label>
+                                <input type="file" id="joinFile1" accept=".csv,.xlsx,.xls" class="file-input">
+                            </div>
+                            <div class="form-group" id="joinKey1Group" style="display: none;">
+                                <label for="joinKey1">Left Key Column:</label>
+                                <select id="joinKey1" class="select-input">
+                                    <option value="">Select column...</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="joinFile2">Right File:</label>
+                                <input type="file" id="joinFile2" accept=".csv,.xlsx,.xls" class="file-input">
+                            </div>
+                            <div class="form-group" id="joinKey2Group" style="display: none;">
+                                <label for="joinKey2">Right Key Column:</label>
+                                <select id="joinKey2" class="select-input">
+                                    <option value="">Select column...</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="combineOutputName">Output File Name:</label>
+                            <input type="text" id="combineOutputName" value="combined_output" class="number-input" placeholder="combined_output">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="combineOutputFormat">Output Format:</label>
+                            <select id="combineOutputFormat" class="select-input">
+                                <option value="csv">CSV (Comma Separated)</option>
+                                <option value="csv-semicolon">CSV (Semicolon Separated)</option>
+                                <option value="csv-tab">CSV (Tab Separated)</option>
+                                <option value="xlsx">Excel (.xlsx)</option>
+                            </select>
+                        </div>
+                        
+                        <button id="combineButton" class="action-btn">
+                            <span class="btn-icon">🔗</span>
+                            Combine Files & Download
+                        </button>
+                        
+                        <div id="combineMessage" class="message"></div>
                     </div>
 
                     <!-- Calculator -->
@@ -627,6 +711,7 @@
         // Initialize functionality
         initializeDragAndResize();
         initializeFileChunker();
+        initializeFileCombiner();
         initializeControls();
         initializeTabs();
         initializeTextTools();
@@ -986,6 +1071,352 @@
                 chunkButton.disabled = false;
             }
         }
+    // Initialize file combiner functionality
+    function initializeFileCombiner() {
+        const combineButton = document.getElementById('combineButton');
+        const messageEl = document.getElementById('combineMessage');
+        const combineType = document.getElementById('combineType');
+        const unionFilesSection = document.getElementById('unionFilesSection');
+        const joinFilesSection = document.getElementById('joinFilesSection');
+        
+        // File data storage
+        let filesData = {};
+
+        function updateMessage(text, type = '') {
+            messageEl.textContent = text;
+            messageEl.className = 'message ' + type;
+        }
+
+        // Handle combine type change
+        combineType.addEventListener('change', function() {
+            const type = combineType.value;
+            if (type === 'union') {
+                unionFilesSection.style.display = 'block';
+                joinFilesSection.style.display = 'none';
+            } else {
+                unionFilesSection.style.display = 'none';
+                joinFilesSection.style.display = 'block';
+            }
+            // Clear file data when switching modes
+            filesData = {};
+        });
+
+        // Handle join file selection to load columns
+        document.getElementById('joinFile1').addEventListener('change', function() {
+            loadFileColumns(this.files[0], 'joinKey1', 'joinKey1Group');
+        });
+
+        document.getElementById('joinFile2').addEventListener('change', function() {
+            loadFileColumns(this.files[0], 'joinKey2', 'joinKey2Group');
+        });
+
+        function loadFileColumns(file, selectId, groupId) {
+            if (!file) {
+                document.getElementById(groupId).style.display = 'none';
+                return;
+            }
+
+            const reader = new FileReader();
+            const fileName = file.name.toLowerCase();
+
+            reader.onload = function(e) {
+                try {
+                    let headers = [];
+                    
+                    if (fileName.endsWith('.csv')) {
+                        const csvData = e.target.result;
+                        const lines = csvData.split('\n');
+                        if (lines.length > 0) {
+                            headers = lines[0].split(',').map(h => h.trim());
+                        }
+                    } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                        const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+                        if (jsonData.length > 0) {
+                            headers = jsonData[0];
+                        }
+                    }
+
+                    // Populate select dropdown
+                    const select = document.getElementById(selectId);
+                    select.innerHTML = '<option value="">Select column...</option>';
+                    headers.forEach((header, index) => {
+                        const option = document.createElement('option');
+                        option.value = index;
+                        option.textContent = header;
+                        select.appendChild(option);
+                    });
+                    
+                    document.getElementById(groupId).style.display = 'block';
+                } catch (error) {
+                    updateMessage('Error reading file columns: ' + error.message, 'error');
+                }
+            };
+
+            if (fileName.endsWith('.csv')) {
+                reader.readAsText(file);
+            } else {
+                reader.readAsArrayBuffer(file);
+            }
+        }
+
+        // Main combine button handler
+        combineButton.addEventListener('click', function() {
+            const type = combineType.value;
+            const outputName = document.getElementById('combineOutputName').value || 'combined_output';
+            const outputFormat = document.getElementById('combineOutputFormat').value;
+
+            combineButton.disabled = true;
+            updateMessage('Processing...', 'processing');
+
+            if (type === 'union') {
+                processUnion(outputName, outputFormat);
+            } else {
+                processJoin(type, outputName, outputFormat);
+            }
+        });
+
+        function processUnion(outputName, outputFormat) {
+            const fileInputs = [
+                document.getElementById('combineFile1'),
+                document.getElementById('combineFile2'),
+                document.getElementById('combineFile3'),
+                document.getElementById('combineFile4'),
+                document.getElementById('combineFile5')
+            ];
+
+            const files = fileInputs.map(input => input.files[0]).filter(f => f);
+
+            if (files.length < 2) {
+                updateMessage('Please select at least 2 files for union.', 'error');
+                combineButton.disabled = false;
+                return;
+            }
+
+            let processedCount = 0;
+            const allData = [];
+            let combinedHeaders = [];
+
+            files.forEach((file, index) => {
+                readFileData(file, (headers, rows) => {
+                    if (index === 0) {
+                        combinedHeaders = headers;
+                    }
+                    allData.push(...rows);
+                    processedCount++;
+
+                    if (processedCount === files.length) {
+                        // All files processed, create output
+                        createOutputFile(combinedHeaders, allData, outputName, outputFormat);
+                    }
+                });
+            });
+        }
+
+        function processJoin(joinType, outputName, outputFormat) {
+            const file1 = document.getElementById('joinFile1').files[0];
+            const file2 = document.getElementById('joinFile2').files[0];
+            const key1Index = parseInt(document.getElementById('joinKey1').value);
+            const key2Index = parseInt(document.getElementById('joinKey2').value);
+
+            if (!file1 || !file2) {
+                updateMessage('Please select both files for join.', 'error');
+                combineButton.disabled = false;
+                return;
+            }
+
+            if (isNaN(key1Index) || isNaN(key2Index)) {
+                updateMessage('Please select key columns for both files.', 'error');
+                combineButton.disabled = false;
+                return;
+            }
+
+            let file1Data = null;
+            let file2Data = null;
+
+            readFileData(file1, (headers1, rows1) => {
+                file1Data = { headers: headers1, rows: rows1 };
+                if (file2Data) {
+                    performJoin(file1Data, file2Data, key1Index, key2Index, joinType, outputName, outputFormat);
+                }
+            });
+
+            readFileData(file2, (headers2, rows2) => {
+                file2Data = { headers: headers2, rows: rows2 };
+                if (file1Data) {
+                    performJoin(file1Data, file2Data, key1Index, key2Index, joinType, outputName, outputFormat);
+                }
+            });
+        }
+
+        function performJoin(file1Data, file2Data, key1Index, key2Index, joinType, outputName, outputFormat) {
+            const { headers: headers1, rows: rows1 } = file1Data;
+            const { headers: headers2, rows: rows2 } = file2Data;
+
+            // Create combined headers (avoiding duplicates)
+            const combinedHeaders = [...headers1];
+            headers2.forEach((h, i) => {
+                if (i !== key2Index) {
+                    combinedHeaders.push(h);
+                }
+            });
+
+            const resultRows = [];
+
+            if (joinType === 'left') {
+                // Left join: keep all rows from file1
+                rows1.forEach(row1 => {
+                    const keyValue = row1[key1Index];
+                    const matchingRow = rows2.find(row2 => row2[key2Index] === keyValue);
+                    
+                    if (matchingRow) {
+                        const combinedRow = [...row1];
+                        matchingRow.forEach((val, i) => {
+                            if (i !== key2Index) {
+                                combinedRow.push(val);
+                            }
+                        });
+                        resultRows.push(combinedRow);
+                    } else {
+                        // No match, add nulls for file2 columns
+                        const combinedRow = [...row1];
+                        headers2.forEach((h, i) => {
+                            if (i !== key2Index) {
+                                combinedRow.push('');
+                            }
+                        });
+                        resultRows.push(combinedRow);
+                    }
+                });
+            } else if (joinType === 'right') {
+                // Right join: keep all rows from file2
+                rows2.forEach(row2 => {
+                    const keyValue = row2[key2Index];
+                    const matchingRow = rows1.find(row1 => row1[key1Index] === keyValue);
+                    
+                    if (matchingRow) {
+                        const combinedRow = [...matchingRow];
+                        row2.forEach((val, i) => {
+                            if (i !== key2Index) {
+                                combinedRow.push(val);
+                            }
+                        });
+                        resultRows.push(combinedRow);
+                    } else {
+                        // No match, add nulls for file1 columns
+                        const combinedRow = new Array(headers1.length).fill('');
+                        combinedRow[key1Index] = keyValue;
+                        row2.forEach((val, i) => {
+                            if (i !== key2Index) {
+                                combinedRow.push(val);
+                            }
+                        });
+                        resultRows.push(combinedRow);
+                    }
+                });
+            }
+
+            createOutputFile(combinedHeaders, resultRows, outputName, outputFormat);
+        }
+
+        function readFileData(file, callback) {
+            const reader = new FileReader();
+            const fileName = file.name.toLowerCase();
+
+            reader.onload = function(e) {
+                try {
+                    let headers = [];
+                    let rows = [];
+
+                    if (fileName.endsWith('.csv')) {
+                        const csvData = e.target.result;
+                        const lines = csvData.split('\n').filter(line => line.trim() !== '');
+                        if (lines.length > 0) {
+                            headers = lines[0].split(',').map(h => h.trim());
+                            rows = lines.slice(1).map(line => line.split(',').map(cell => cell.trim()));
+                        }
+                    } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                        const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+                        if (jsonData.length > 0) {
+                            headers = jsonData[0];
+                            rows = jsonData.slice(1).filter(row => row.some(cell => cell !== undefined && cell !== ''));
+                        }
+                    }
+
+                    callback(headers, rows);
+                } catch (error) {
+                    updateMessage('Error reading file: ' + error.message, 'error');
+                    combineButton.disabled = false;
+                }
+            };
+
+            if (fileName.endsWith('.csv')) {
+                reader.readAsText(file);
+            } else {
+                reader.readAsArrayBuffer(file);
+            }
+        }
+
+        function createOutputFile(headers, rows, outputName, outputFormat) {
+            try {
+                if (outputFormat === 'xlsx') {
+                    // Create Excel file
+                    const wb = XLSX.utils.book_new();
+                    const wsData = [headers, ...rows];
+                    const ws = XLSX.utils.aoa_to_sheet(wsData);
+                    XLSX.utils.book_append_sheet(wb, ws, 'Combined');
+                    const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+                    
+                    const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+                    downloadFile(blob, `${outputName}.xlsx`);
+                } else {
+                    // Create CSV file with different separators
+                    let separator = ',';
+                    let extension = 'csv';
+                    
+                    switch (outputFormat) {
+                        case 'csv-semicolon':
+                            separator = ';';
+                            break;
+                        case 'csv-tab':
+                            separator = '\t';
+                            break;
+                        default:
+                            separator = ',';
+                    }
+                    
+                    const csvContent = [headers, ...rows]
+                        .map(row => Array.isArray(row) ? row.join(separator) : row)
+                        .join('\n');
+                    
+                    const blob = new Blob([csvContent], { type: 'text/csv' });
+                    downloadFile(blob, `${outputName}.${extension}`);
+                }
+
+                updateMessage(`Success: Files combined and downloaded as ${outputName}.`, 'success');
+                combineButton.disabled = false;
+            } catch (error) {
+                console.error('Error creating output file:', error);
+                updateMessage('Error creating output file: ' + error.message, 'error');
+                combineButton.disabled = false;
+            }
+        }
+
+        function downloadFile(blob, filename) {
+            const link = document.createElement('a');
+            link.href = window.URL.createObjectURL(blob);
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    }
+
     }
 
     // Initialize text tools
