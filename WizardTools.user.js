@@ -1268,12 +1268,24 @@
             const resultRows = [];
 
             if (joinType === 'left') {
+                // Build hash map for O(1) lookups - optimized for large files
+                const rows2Map = new Map();
+                rows2.forEach(row2 => {
+                    const keyValue = row2[key2Index];
+                    if (!rows2Map.has(keyValue)) {
+                        rows2Map.set(keyValue, []);
+                    }
+                    rows2Map.get(keyValue).push(row2);
+                });
+
                 // Left join: keep all rows from file1
                 rows1.forEach(row1 => {
                     const keyValue = row1[key1Index];
-                    const matchingRow = rows2.find(row2 => row2[key2Index] === keyValue);
+                    const matchingRows = rows2Map.get(keyValue);
                     
-                    if (matchingRow) {
+                    if (matchingRows && matchingRows.length > 0) {
+                        // Use first matching row
+                        const matchingRow = matchingRows[0];
                         const combinedRow = [...row1];
                         matchingRow.forEach((val, i) => {
                             if (i !== key2Index) {
@@ -1293,12 +1305,24 @@
                     }
                 });
             } else if (joinType === 'right') {
+                // Build hash map for O(1) lookups - optimized for large files
+                const rows1Map = new Map();
+                rows1.forEach(row1 => {
+                    const keyValue = row1[key1Index];
+                    if (!rows1Map.has(keyValue)) {
+                        rows1Map.set(keyValue, []);
+                    }
+                    rows1Map.get(keyValue).push(row1);
+                });
+
                 // Right join: keep all rows from file2
                 rows2.forEach(row2 => {
                     const keyValue = row2[key2Index];
-                    const matchingRow = rows1.find(row1 => row1[key1Index] === keyValue);
+                    const matchingRows = rows1Map.get(keyValue);
                     
-                    if (matchingRow) {
+                    if (matchingRows && matchingRows.length > 0) {
+                        // Use first matching row
+                        const matchingRow = matchingRows[0];
                         const combinedRow = [...matchingRow];
                         row2.forEach((val, i) => {
                             if (i !== key2Index) {
