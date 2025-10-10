@@ -1,0 +1,20 @@
+# Wizard Tools - Python Requirements
+
+# Data processing
+pandas>=2.0.0
+openpyxl>=3.1.0
+xlrd>=2.0.1
+
+# GUI (tkinter is included with Python)
+# No additional GUI dependencies needed
+
+# Image processing (for color picker)
+Pillow>=10.0.0
+
+# Optional: Enhanced themes
+ttkthemes>=3.2.2
+
+# Development dependencies (optional)
+# pytest>=7.4.0
+# black>=23.0.0
+# flake8>=6.0.0
