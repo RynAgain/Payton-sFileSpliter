@@ -7,7 +7,8 @@ from .widgets import (
     FileSelector,
     FolderSelector,
     ProgressDialog,
-    ScrolledText
+    ScrolledText,
+    ExcelSheetSelector
 )
 from .main_window import MainWindow
 
@@ -18,5 +19,6 @@ __all__ = [
     "FolderSelector",
     "ProgressDialog",
     "ScrolledText",
+    "ExcelSheetSelector",
     "MainWindow"
 ]

@@ -6,6 +6,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
 from pathlib import Path
+from typing import List, Tuple
 import sys
 
 # Add parent directory to path for imports
@@ -13,8 +14,8 @@ parent_dir = Path(__file__).parent.parent
 if str(parent_dir) not in sys.path:
     sys.path.insert(0, str(parent_dir))
 
-from config import SUPPORTED_FILE_TYPES, PADDING
-from ui.widgets import FileSelector, ProgressDialog
+from config import SUPPORTED_FILE_TYPES, PADDING, COLORS
+from ui.widgets import FileSelector, ProgressDialog, ExcelSheetSelector
 from utils import FileProcessor, validate_data_file
 
 
@@ -30,13 +31,36 @@ class FileCombinerTool(ttk.Frame):
         """
         super().__init__(parent)
         self.processor = FileProcessor()
+        self.sheet_selections = {}  # {file_path: sheet_name}
         self._setup_ui()
     
     def _setup_ui(self):
         """Setup the user interface"""
+        # Create canvas and scrollbar for scrollable content
+        canvas = tk.Canvas(self, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(self, orient="vertical", command=canvas.yview)
+        self.scrollable_frame = ttk.Frame(canvas)
+        
+        self.scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        # Pack canvas and scrollbar
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        # Enable mouse wheel scrolling
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+        
         # Title
         title = ttk.Label(
-            self,
+            self.scrollable_frame,
             text="File Combiner",
             style="Title.TLabel"
         )
@@ -44,7 +68,7 @@ class FileCombinerTool(ttk.Frame):
         
         # Description
         desc = ttk.Label(
-            self,
+            self.scrollable_frame,
             text="Combine multiple CSV or Excel files using Union or Join operations",
             wraplength=600
         )
@@ -52,15 +76,44 @@ class FileCombinerTool(ttk.Frame):
         
         # Input files selector
         self.file_selector = FileSelector(
-            self,
-            "Select Input Files (multiple):",
+            self.scrollable_frame,
+            "Select Input Files (multiple files will be combined):",
             SUPPORTED_FILE_TYPES,
-            multiple=True
+            multiple=True,
+            on_change=self._update_file_order_display
         )
         self.file_selector.pack(fill=tk.X, padx=PADDING["large"], pady=PADDING["medium"])
         
+        # File order info
+        self.file_order_var = tk.StringVar(value="")
+        file_order_label = ttk.Label(
+            self.scrollable_frame,
+            textvariable=self.file_order_var,
+            wraplength=600,
+            font=("Segoe UI", 9, "italic"),
+            foreground=COLORS["dark_gray"]
+        )
+        file_order_label.pack(fill=tk.X, padx=PADDING["large"], pady=(0, PADDING["small"]))
+        
+        # Excel sheet selection button
+        sheet_button_frame = ttk.Frame(self.scrollable_frame)
+        sheet_button_frame.pack(fill=tk.X, padx=PADDING["large"], pady=PADDING["small"])
+        
+        ttk.Button(
+            sheet_button_frame,
+            text="Select Excel Sheets...",
+            command=self._select_excel_sheets
+        ).pack(side=tk.LEFT)
+        
+        self.sheet_status_var = tk.StringVar(value="")
+        ttk.Label(
+            sheet_button_frame,
+            textvariable=self.sheet_status_var,
+            font=("Segoe UI", 9, "italic")
+        ).pack(side=tk.LEFT, padx=PADDING["medium"])
+        
         # Operation type frame
-        operation_frame = ttk.LabelFrame(self, text="Combine Operation", padding=PADDING["medium"])
+        operation_frame = ttk.LabelFrame(self.scrollable_frame, text="Combine Operation", padding=PADDING["medium"])
         operation_frame.pack(fill=tk.X, padx=PADDING["large"], pady=PADDING["medium"])
         
         self.operation_var = tk.StringVar(value="union")
@@ -111,12 +164,15 @@ class FileCombinerTool(ttk.Frame):
         ttk.Label(join_col_frame, text="Join Column:").pack(side=tk.LEFT, padx=(0, PADDING["small"]))
         
         self.join_column_var = tk.StringVar()
-        self.join_column_entry = ttk.Entry(
+        
+        # Use combobox instead of entry for better UX
+        self.join_column_combo = ttk.Combobox(
             join_col_frame,
             textvariable=self.join_column_var,
-            width=30
+            width=30,
+            state="normal"
         )
-        self.join_column_entry.pack(side=tk.LEFT, padx=PADDING["small"])
+        self.join_column_combo.pack(side=tk.LEFT, padx=PADDING["small"])
         
         ttk.Button(
             join_col_frame,
@@ -147,7 +203,7 @@ class FileCombinerTool(ttk.Frame):
             ).pack(side=tk.LEFT, padx=PADDING["small"])
         
         # Output format
-        output_frame = ttk.Frame(self)
+        output_frame = ttk.Frame(self.scrollable_frame)
         output_frame.pack(fill=tk.X, padx=PADDING["large"], pady=PADDING["medium"])
         
         ttk.Label(output_frame, text="Output format:").pack(side=tk.LEFT, padx=(0, PADDING["small"]))
@@ -168,7 +224,7 @@ class FileCombinerTool(ttk.Frame):
         ).pack(side=tk.LEFT, padx=PADDING["small"])
         
         # Buttons frame
-        buttons_frame = ttk.Frame(self)
+        buttons_frame = ttk.Frame(self.scrollable_frame)
         buttons_frame.pack(pady=PADDING["large"])
         
         ttk.Button(
@@ -187,11 +243,58 @@ class FileCombinerTool(ttk.Frame):
         # Status label
         self.status_var = tk.StringVar(value="")
         self.status_label = ttk.Label(
-            self,
+            self.scrollable_frame,
             textvariable=self.status_var,
             wraplength=600
         )
         self.status_label.pack(pady=PADDING["small"])
+    
+    def _update_file_order_display(self):
+        """Update the file order display"""
+        file_paths = self.file_selector.get_paths()
+        
+        if not file_paths:
+            self.file_order_var.set("")
+            return
+        
+        if len(file_paths) == 1:
+            self.file_order_var.set(f"📄 Selected: {Path(file_paths[0]).name}")
+        else:
+            first_file = Path(file_paths[0]).name
+            self.file_order_var.set(
+                f"📄 {len(file_paths)} files selected. "
+                f"For joins: '{first_file}' will be the LEFT table, others will join to it in order."
+            )
+    
+    def _select_excel_sheets(self):
+        """Open dialog to select Excel sheets"""
+        file_paths = self.file_selector.get_paths()
+        
+        if not file_paths:
+            messagebox.showwarning("No Files", "Please select input files first")
+            return
+        
+        self._update_file_order_display()
+        
+        # Filter for Excel files only
+        excel_files = [f for f in file_paths if f.lower().endswith(('.xlsx', '.xls'))]
+        
+        if not excel_files:
+            messagebox.showinfo("No Excel Files", "No Excel files selected. Sheet selection is only needed for Excel files.")
+            return
+        
+        # Open sheet selector dialog
+        dialog = ExcelSheetSelector(self, excel_files, self.processor)
+        self.wait_window(dialog)
+        
+        # Get selections
+        selections = dialog.get_selections()
+        if selections:
+            self.sheet_selections = selections
+            count = len(selections)
+            self.sheet_status_var.set(f"✓ Sheets selected for {count} Excel file(s)")
+        else:
+            self.sheet_status_var.set("")
     
     def _on_operation_change(self):
         """Handle operation type change"""
@@ -208,29 +311,48 @@ class FileCombinerTool(ttk.Frame):
             messagebox.showwarning("No Files", "Please select input files first")
             return
         
+        self._update_file_order_display()
+        
         try:
-            # Get columns from first file
-            columns = self.processor.get_column_names(file_paths[0])
+            # Get columns from first file (with sheet selection if applicable)
+            sheet_name = self.sheet_selections.get(file_paths[0])
+            columns = self.processor.get_column_names(file_paths[0], sheet_name=sheet_name)
             
             if not columns:
-                messagebox.showerror("Error", "Could not read columns from file")
+                messagebox.showerror("Error", "Could not read columns from first file")
                 return
             
             # Find common columns across all files
             common_columns = set(columns)
             for file_path in file_paths[1:]:
-                file_columns = set(self.processor.get_column_names(file_path))
+                sheet_name = self.sheet_selections.get(file_path)
+                file_columns = set(self.processor.get_column_names(file_path, sheet_name=sheet_name))
                 common_columns &= file_columns
             
             if not common_columns:
                 messagebox.showwarning(
                     "No Common Columns",
-                    "No common columns found across all files"
+                    f"No common columns found across all files.\n\n"
+                    f"First file columns: {', '.join(columns[:5])}{'...' if len(columns) > 5 else ''}"
                 )
+                # Still populate combobox with first file's columns
+                self.join_column_combo['values'] = sorted(columns)
                 return
             
-            # Show dialog to select column
-            self._show_column_selector(sorted(common_columns))
+            # Populate combobox with common columns
+            common_list = sorted(common_columns)
+            self.join_column_combo['values'] = common_list
+            
+            # Auto-select first common column
+            if common_list:
+                self.join_column_var.set(common_list[0])
+            
+            messagebox.showinfo(
+                "Columns Detected",
+                f"Found {len(common_list)} common column(s):\n" +
+                ", ".join(common_list[:10]) +
+                ("..." if len(common_list) > 10 else "")
+            )
         
         except Exception as e:
             messagebox.showerror("Error", f"Failed to detect columns:\n{str(e)}")
@@ -340,12 +462,12 @@ class FileCombinerTool(ttk.Frame):
             try:
                 if operation == "union":
                     progress.update_status("Combining files with union...")
-                    success, error = self.processor.union_files(file_paths, output_path)
+                    success, error = self._union_files_with_sheets(file_paths, output_path)
                 else:
                     join_column = self.join_column_var.get().strip()
                     join_type = self.join_type_var.get()
                     progress.update_status(f"Combining files with {join_type} join...")
-                    success, error = self.processor.join_files(
+                    success, error = self._join_files_with_sheets(
                         file_paths,
                         output_path,
                         join_column,
@@ -379,6 +501,76 @@ class FileCombinerTool(ttk.Frame):
         self.status_var.set("✗ Error occurred")
         messagebox.showerror("Error", f"Failed to combine files:\n{error}")
     
+    def _union_files_with_sheets(self, file_paths: List[str], output_path: str) -> Tuple[bool, str]:
+        """Union files with sheet selection support"""
+        try:
+            dfs = []
+            for file_path in file_paths:
+                sheet_name = self.sheet_selections.get(file_path)
+                df = self.processor.read_file(file_path, sheet_name=sheet_name)
+                dfs.append(df)
+            
+            # Concatenate all DataFrames
+            import pandas as pd
+            combined_df = pd.concat(dfs, ignore_index=True)
+            
+            # Write output file
+            success = self.processor.write_file(combined_df, output_path)
+            
+            if success:
+                return True, ""
+            else:
+                return False, "Failed to write output file"
+        except Exception as e:
+            return False, str(e)
+    
+    def _join_files_with_sheets(
+        self,
+        file_paths: List[str],
+        output_path: str,
+        join_column: str,
+        join_type: str
+    ) -> Tuple[bool, str]:
+        """Join files with sheet selection support"""
+        try:
+            import pandas as pd
+            import os
+            
+            # Read first file
+            sheet_name = self.sheet_selections.get(file_paths[0])
+            result_df = self.processor.read_file(file_paths[0], sheet_name=sheet_name)
+            
+            # Check if join column exists
+            if join_column not in result_df.columns:
+                return False, f"Join column '{join_column}' not found in first file"
+            
+            # Join with remaining files
+            for file_path in file_paths[1:]:
+                sheet_name = self.sheet_selections.get(file_path)
+                df = self.processor.read_file(file_path, sheet_name=sheet_name)
+                
+                # Check if join column exists
+                if join_column not in df.columns:
+                    return False, f"Join column '{join_column}' not found in {os.path.basename(file_path)}"
+                
+                # Perform join
+                result_df = result_df.merge(
+                    df,
+                    on=join_column,
+                    how=join_type,
+                    suffixes=('', f'_{os.path.basename(file_path)}')
+                )
+            
+            # Write output file
+            success = self.processor.write_file(result_df, output_path)
+            
+            if success:
+                return True, ""
+            else:
+                return False, "Failed to write output file"
+        except Exception as e:
+            return False, str(e)
+    
     def _clear_form(self):
         """Clear all form inputs"""
         self.file_selector.clear()
@@ -387,4 +579,6 @@ class FileCombinerTool(ttk.Frame):
         self.join_type_var.set("inner")
         self.output_format_var.set("csv")
         self.status_var.set("")
+        self.sheet_selections = {}
+        self.sheet_status_var.set("")
         self._on_operation_change()

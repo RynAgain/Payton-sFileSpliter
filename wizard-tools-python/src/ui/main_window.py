@@ -26,8 +26,7 @@ from tools import (
     FileChunkerTool,
     FileCombinerTool,
     TextToolsTool,
-    ColorPickerTool,
-    CalculatorTool
+    ColorPickerTool
 )
 
 
@@ -145,12 +144,6 @@ class MainWindow:
         self.notebook.add(color_picker_frame, text="🎨 Color Picker")
         color_picker = ColorPickerTool(color_picker_frame)
         color_picker.pack(fill=tk.BOTH, expand=True)
-        
-        # Calculator
-        calculator_frame = ttk.Frame(self.notebook)
-        self.notebook.add(calculator_frame, text="🔢 Calculator")
-        calculator = CalculatorTool(calculator_frame)
-        calculator.pack(fill=tk.BOTH, expand=True)
     
     def _on_close(self):
         """Handle window close"""

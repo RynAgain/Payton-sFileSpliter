@@ -27,12 +27,13 @@ class FileProcessor:
     """Handles file processing operations for CSV and Excel files"""
     
     @staticmethod
-    def read_file(file_path: str, **kwargs) -> pd.DataFrame:
+    def read_file(file_path: str, sheet_name: Optional[str] = None, **kwargs) -> pd.DataFrame:
         """
         Read a CSV or Excel file into a DataFrame
         
         Args:
             file_path: Path to the file
+            sheet_name: Sheet name for Excel files (None for first sheet or CSV)
             **kwargs: Additional arguments for pandas read functions
             
         Returns:
@@ -42,12 +43,18 @@ class FileProcessor:
             ValueError: If file type is not supported
             Exception: If file cannot be read
         """
+        # Only treat empty strings and whitespace as NA, not "NA" string
+        # This prevents "North Atlantic" abbreviated as "NA" from being treated as missing
+        na_values = ['', ' ', '  ']  # Only empty and whitespace strings
+        
         if is_csv_file(file_path):
-            return pd.read_csv(file_path, **kwargs)
+            return pd.read_csv(file_path, na_values=na_values, keep_default_na=False, **kwargs)
         elif is_excel_file(file_path):
             ext = get_file_extension(file_path)
             engine = EXCEL_ENGINE_XLS if ext == '.xls' else EXCEL_ENGINE
-            return pd.read_excel(file_path, engine=engine, **kwargs)
+            # Use sheet_name parameter if provided, otherwise default to first sheet (0)
+            sheet = sheet_name if sheet_name is not None else 0
+            return pd.read_excel(file_path, engine=engine, sheet_name=sheet, na_values=na_values, keep_default_na=False, **kwargs)
         else:
             raise ValueError(f"Unsupported file type: {file_path}")
     
@@ -289,19 +296,44 @@ class FileProcessor:
             }
     
     @staticmethod
-    def get_column_names(file_path: str) -> List[str]:
+    def get_column_names(file_path: str, sheet_name: Optional[str] = None) -> List[str]:
         """
         Get column names from a file
         
         Args:
             file_path: Path to the file
+            sheet_name: Sheet name for Excel files (None for first sheet)
             
         Returns:
             List of column names
         """
         try:
             # Read only first row to get column names
-            df = FileProcessor.read_file(file_path, nrows=1)
+            df = FileProcessor.read_file(file_path, sheet_name=sheet_name, nrows=1)
             return list(df.columns)
+        except Exception:
+            return []
+    
+    @staticmethod
+    def get_excel_sheet_names(file_path: str) -> List[str]:
+        """
+        Get sheet names from an Excel file
+        
+        Args:
+            file_path: Path to the Excel file
+            
+        Returns:
+            List of sheet names, empty list if not an Excel file or error
+        """
+        try:
+            if not is_excel_file(file_path):
+                return []
+            
+            ext = get_file_extension(file_path)
+            engine = EXCEL_ENGINE_XLS if ext == '.xls' else EXCEL_ENGINE
+            
+            # Read Excel file to get sheet names
+            excel_file = pd.ExcelFile(file_path, engine=engine)
+            return excel_file.sheet_names
         except Exception:
             return []

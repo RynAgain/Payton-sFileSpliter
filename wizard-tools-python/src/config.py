@@ -60,6 +60,7 @@ FONTS: Dict[str, Tuple[str, int, str]] = {
 
 # File settings
 SUPPORTED_FILE_TYPES = [
+    ("All supported files", "*.csv *.xlsx *.xls"),
     ("CSV files", "*.csv"),
     ("Excel files", "*.xlsx *.xls"),
     ("All files", "*.*"),

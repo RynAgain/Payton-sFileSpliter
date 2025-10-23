@@ -77,7 +77,7 @@ class WholeFoodsTheme:
         style.configure(
             "TButton",
             background=self.colors["button_bg"],
-            foreground=self.colors["white"],
+            foreground=self.colors["black"],
             font=self.fonts["button"],
             borderwidth=1,
             relief="raised",
@@ -90,6 +90,11 @@ class WholeFoodsTheme:
                 ("active", self.colors["button_hover"]),
                 ("pressed", self.colors["button_active"]),
                 ("disabled", self.colors["button_disabled"])
+            ],
+            foreground=[
+                ("active", self.colors["black"]),
+                ("pressed", self.colors["white"]),
+                ("disabled", self.colors["dark_gray"])
             ]
         )
         
@@ -97,9 +102,17 @@ class WholeFoodsTheme:
         style.configure(
             "Primary.TButton",
             background=self.colors["secondary_green"],
-            foreground=self.colors["white"],
+            foreground=self.colors["black"],
             font=self.fonts["button"],
             padding=(15, 8)
+        )
+        
+        style.map(
+            "Primary.TButton",
+            foreground=[
+                ("active", self.colors["black"]),
+                ("pressed", self.colors["white"])
+            ]
         )
         
         # Configure TEntry

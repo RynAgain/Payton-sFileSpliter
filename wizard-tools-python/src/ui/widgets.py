@@ -3,7 +3,7 @@ Custom widgets for Wizard Tools application
 """
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
-from typing import Optional, Callable, List
+from typing import Optional, Callable, List, Dict
 import sys
 from pathlib import Path
 
@@ -104,7 +104,8 @@ class FileSelector(ttk.Frame):
         parent: tk.Widget,
         label_text: str,
         file_types: List[tuple],
-        multiple: bool = False
+        multiple: bool = False,
+        on_change: Optional[Callable] = None
     ):
         """
         Initialize file selector
@@ -114,18 +115,21 @@ class FileSelector(ttk.Frame):
             label_text: Label text
             file_types: List of file type tuples for file dialog
             multiple: Whether to allow multiple file selection
+            on_change: Optional callback when files are selected
         """
         super().__init__(parent)
         self.file_types = file_types
         self.multiple = multiple
+        self.selected_files = []
+        self.on_change = on_change
         
         # Label
         self.label = ttk.Label(self, text=label_text)
-        self.label.grid(row=0, column=0, sticky=tk.W, pady=PADDING["small"])
+        self.label.grid(row=0, column=0, columnspan=3, sticky=tk.W, pady=PADDING["small"])
         
-        # Entry
+        # Entry (for display)
         self.path_var = tk.StringVar()
-        self.entry = ttk.Entry(self, textvariable=self.path_var, width=50)
+        self.entry = ttk.Entry(self, textvariable=self.path_var, width=50, state="readonly")
         self.entry.grid(row=1, column=0, sticky=tk.EW, padx=(0, PADDING["small"]))
         
         # Browse button
@@ -134,7 +138,16 @@ class FileSelector(ttk.Frame):
             text="Browse...",
             command=self._browse
         )
-        self.browse_btn.grid(row=1, column=1)
+        self.browse_btn.grid(row=1, column=1, padx=PADDING["small"])
+        
+        # Add More button (only for multiple selection)
+        if self.multiple:
+            self.add_more_btn = ttk.Button(
+                self,
+                text="Add More...",
+                command=self._add_more
+            )
+            self.add_more_btn.grid(row=1, column=2)
         
         self.columnconfigure(0, weight=1)
     
@@ -143,25 +156,52 @@ class FileSelector(ttk.Frame):
         if self.multiple:
             files = filedialog.askopenfilenames(filetypes=self.file_types)
             if files:
-                self.path_var.set(";".join(files))
+                self.selected_files = list(files)
+                self._update_display()
         else:
             file = filedialog.askopenfilename(filetypes=self.file_types)
             if file:
-                self.path_var.set(file)
+                self.selected_files = [file]
+                self._update_display()
+    
+    def _add_more(self):
+        """Add more files to the selection"""
+        files = filedialog.askopenfilenames(filetypes=self.file_types)
+        if files:
+            # Add new files, avoiding duplicates
+            for file in files:
+                if file not in self.selected_files:
+                    self.selected_files.append(file)
+            self._update_display()
+    
+    def _update_display(self):
+        """Update the display with selected files"""
+        if not self.selected_files:
+            self.path_var.set("")
+        elif len(self.selected_files) == 1:
+            self.path_var.set(self.selected_files[0])
+        else:
+            # Show count and first file
+            display = f"{len(self.selected_files)} files selected: {Path(self.selected_files[0]).name}, ..."
+            self.path_var.set(display)
+        
+        # Call on_change callback if provided
+        if self.on_change:
+            self.on_change()
     
     def get_path(self) -> str:
         """Get the selected file path(s)"""
-        return self.path_var.get()
+        if self.selected_files:
+            return self.selected_files[0]
+        return ""
     
     def get_paths(self) -> List[str]:
         """Get list of selected file paths"""
-        path_str = self.path_var.get()
-        if not path_str:
-            return []
-        return [p.strip() for p in path_str.split(";") if p.strip()]
+        return self.selected_files.copy()
     
     def clear(self):
         """Clear the file path"""
+        self.selected_files = []
         self.path_var.set("")
 
 
@@ -340,3 +380,148 @@ class ScrolledText(ttk.Frame):
     def append(self, content: str):
         """Append text content"""
         self.text.insert(tk.END, content)
+
+
+class ExcelSheetSelector(tk.Toplevel):
+    """Dialog for selecting Excel sheets from multiple files"""
+    
+    def __init__(self, parent: tk.Widget, file_paths: List[str], processor):
+        """
+        Initialize Excel sheet selector dialog
+        
+        Args:
+            parent: Parent widget
+            file_paths: List of Excel file paths
+            processor: FileProcessor instance
+        """
+        super().__init__(parent)
+        self.title("Select Excel Sheets")
+        self.transient(parent)
+        self.grab_set()
+        
+        self.file_paths = file_paths
+        self.processor = processor
+        self.sheet_selections = {}  # {file_path: sheet_name}
+        self.result = None
+        
+        # Configure window
+        self.configure(bg=COLORS["beige"])
+        self.geometry("600x500")
+        
+        # Center on parent
+        self.update_idletasks()
+        x = parent.winfo_x() + (parent.winfo_width() - 600) // 2
+        y = parent.winfo_y() + (parent.winfo_height() - 500) // 2
+        self.geometry(f"+{x}+{y}")
+        
+        self._setup_ui()
+    
+    def _setup_ui(self):
+        """Setup the user interface"""
+        # Title
+        title = ttk.Label(
+            self,
+            text="Select Sheets from Excel Files",
+            style="Title.TLabel"
+        )
+        title.pack(pady=PADDING["medium"])
+        
+        # Description
+        desc = ttk.Label(
+            self,
+            text="For each Excel file, select which sheet to use:",
+            wraplength=550
+        )
+        desc.pack(pady=PADDING["small"])
+        
+        # Scrollable frame for file/sheet selections
+        canvas = tk.Canvas(self, bg=COLORS["beige"], highlightthickness=0)
+        scrollbar = ttk.Scrollbar(self, orient=tk.VERTICAL, command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas)
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor=tk.NW)
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=PADDING["medium"])
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # Create selection widgets for each Excel file
+        for file_path in self.file_paths:
+            if file_path.lower().endswith(('.xlsx', '.xls')):
+                self._create_file_sheet_selector(scrollable_frame, file_path)
+        
+        # Buttons frame
+        buttons_frame = ttk.Frame(self)
+        buttons_frame.pack(pady=PADDING["medium"])
+        
+        ttk.Button(
+            buttons_frame,
+            text="OK",
+            command=self._on_ok,
+            style="Primary.TButton"
+        ).pack(side=tk.LEFT, padx=PADDING["small"])
+        
+        ttk.Button(
+            buttons_frame,
+            text="Cancel",
+            command=self._on_cancel
+        ).pack(side=tk.LEFT, padx=PADDING["small"])
+    
+    def _create_file_sheet_selector(self, parent: tk.Widget, file_path: str):
+        """Create sheet selector for a single file"""
+        frame = ttk.LabelFrame(
+            parent,
+            text=Path(file_path).name,
+            padding=PADDING["medium"]
+        )
+        frame.pack(fill=tk.X, padx=PADDING["small"], pady=PADDING["small"])
+        
+        # Get sheet names
+        sheet_names = self.processor.get_excel_sheet_names(file_path)
+        
+        if not sheet_names:
+            ttk.Label(
+                frame,
+                text="Could not read sheets from this file",
+                foreground=COLORS["error_red"]
+            ).pack()
+            return
+        
+        # Create combobox for sheet selection
+        sheet_var = tk.StringVar(value=sheet_names[0])
+        self.sheet_selections[file_path] = sheet_var
+        
+        ttk.Label(frame, text="Select sheet:").pack(side=tk.LEFT, padx=(0, PADDING["small"]))
+        
+        sheet_combo = ttk.Combobox(
+            frame,
+            textvariable=sheet_var,
+            values=sheet_names,
+            state="readonly",
+            width=40
+        )
+        sheet_combo.pack(side=tk.LEFT, fill=tk.X, expand=True)
+    
+    def _on_ok(self):
+        """Handle OK button click"""
+        self.result = {fp: var.get() for fp, var in self.sheet_selections.items()}
+        self.destroy()
+    
+    def _on_cancel(self):
+        """Handle Cancel button click"""
+        self.result = None
+        self.destroy()
+    
+    def get_selections(self) -> Optional[Dict[str, str]]:
+        """
+        Get the sheet selections
+        
+        Returns:
+            Dictionary mapping file paths to selected sheet names, or None if cancelled
+        """
+        return self.result
