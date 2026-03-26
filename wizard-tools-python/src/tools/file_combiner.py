@@ -136,6 +136,17 @@ class FileCombinerTool(ttk.Frame):
             font=("Segoe UI", 9, "italic")
         ).pack(side=tk.LEFT, padx=PADDING["medium"])
         
+        # Union options frame
+        self.union_options_frame = ttk.Frame(operation_frame)
+        self.union_options_frame.pack(fill=tk.X, pady=PADDING["small"])
+        
+        self.align_columns_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(
+            self.union_options_frame,
+            text="Align Columns (recommended for files with same columns in different orders)",
+            variable=self.align_columns_var
+        ).pack(side=tk.LEFT, padx=(20, 0))
+        
         # Join option
         join_frame = ttk.Frame(operation_frame)
         join_frame.pack(fill=tk.X, pady=PADDING["small"])
@@ -300,8 +311,10 @@ class FileCombinerTool(ttk.Frame):
         """Handle operation type change"""
         if self.operation_var.get() == "join":
             self.join_options_frame.pack(fill=tk.X, pady=PADDING["medium"])
+            self.union_options_frame.pack_forget()
         else:
             self.join_options_frame.pack_forget()
+            self.union_options_frame.pack(fill=tk.X, pady=PADDING["small"])
     
     def _detect_columns(self):
         """Detect common columns from selected files"""
@@ -510,8 +523,12 @@ class FileCombinerTool(ttk.Frame):
                 df = self.processor.read_file(file_path, sheet_name=sheet_name)
                 dfs.append(df)
             
-            # Concatenate all DataFrames
+            # Align columns if requested
             import pandas as pd
+            if self.align_columns_var.get():
+                dfs = self.processor._align_dataframe_columns(dfs)
+            
+            # Concatenate all DataFrames
             combined_df = pd.concat(dfs, ignore_index=True)
             
             # Write output file
@@ -575,6 +592,7 @@ class FileCombinerTool(ttk.Frame):
         """Clear all form inputs"""
         self.file_selector.clear()
         self.operation_var.set("union")
+        self.align_columns_var.set(True)
         self.join_column_var.set("")
         self.join_type_var.set("inner")
         self.output_format_var.set("csv")

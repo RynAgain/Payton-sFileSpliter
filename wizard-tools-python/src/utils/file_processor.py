@@ -174,9 +174,47 @@ class FileProcessor:
             return False, [], str(e)
     
     @staticmethod
+    def _align_dataframe_columns(dfs: List[pd.DataFrame]) -> List[pd.DataFrame]:
+        """
+        Align columns across multiple DataFrames to ensure consistent column order
+        
+        This method collects all unique columns from all DataFrames and reorders
+        each DataFrame to have the same column order. Missing columns are filled
+        with NaN values.
+        
+        Args:
+            dfs: List of DataFrames to align
+            
+        Returns:
+            List of DataFrames with aligned columns
+        """
+        if not dfs:
+            return dfs
+        
+        # Collect all unique columns from all DataFrames
+        all_columns = []
+        seen_columns = set()
+        
+        for df in dfs:
+            for col in df.columns:
+                if col not in seen_columns:
+                    all_columns.append(col)
+                    seen_columns.add(col)
+        
+        # Reindex each DataFrame to have all columns in the same order
+        aligned_dfs = []
+        for df in dfs:
+            # Reindex with all columns, filling missing ones with NaN
+            aligned_df = df.reindex(columns=all_columns)
+            aligned_dfs.append(aligned_df)
+        
+        return aligned_dfs
+    
+    @staticmethod
     def union_files(
         file_paths: List[str],
-        output_path: str
+        output_path: str,
+        align_columns: bool = False
     ) -> Tuple[bool, str]:
         """
         Combine files using union (concatenate rows)
@@ -184,6 +222,7 @@ class FileProcessor:
         Args:
             file_paths: List of input file paths
             output_path: Output file path
+            align_columns: If True, align columns across all files before union
             
         Returns:
             Tuple of (success, error message)
@@ -197,6 +236,10 @@ class FileProcessor:
             for file_path in file_paths:
                 df = FileProcessor.read_file(file_path)
                 dfs.append(df)
+            
+            # Align columns if requested
+            if align_columns:
+                dfs = FileProcessor._align_dataframe_columns(dfs)
             
             # Concatenate all DataFrames
             combined_df = pd.concat(dfs, ignore_index=True)
